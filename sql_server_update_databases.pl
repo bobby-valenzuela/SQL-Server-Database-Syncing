@@ -169,32 +169,34 @@ for my $table (0..$#{$src_tables}){
     $sth->execute;
     my $indexes = $sth->fetchall_arrayref();
 
-    for my $index(0..$#{$indexes}){
-        # Only getting clustered indexes - guard clause also protects against no index
-        next if ($indexes->[$index][1] =~ m/^clustered/gi || $indexes->[$index][0] eq '');
+    # Protects against no indexes
+    if ($indexes->[0][0] != 0){
+        for my $index(0..$#{$indexes}){
+            # Only getting clustered indexes - guard clause 
+            next if ($indexes->[$index][1] =~ m/^clustered/gi || $indexes->[$index][0] eq '');
 
-        @cols_to_index = split(', ',$indexes->[$index][2]);
-        $cols_to_index = '';
+            @cols_to_index = split(', ',$indexes->[$index][2]);
+            $cols_to_index = '';
 
-        for my $col(@cols_to_index){
+            for my $col(@cols_to_index){
 
-            $cols_to_index .= "[$col],";
+                $cols_to_index .= "[$col],";
 
+            }
+            $cols_to_index =~ s/,$//;
+
+            $query = "
+                CREATE NONCLUSTERED INDEX [$indexes->[$index][0]] ON [$SRC_TABLE_NAME]
+                (
+                    $cols_to_index ASC
+                )
+                WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+            ";
+            print "INDEX CREATION: $query\n" if $debug;
+            my $sth = $destination_db->prepare($query);
+            $sth->execute;
         }
-        $cols_to_index =~ s/,$//;
-
-        $query = "
-            CREATE NONCLUSTERED INDEX [$indexes->[$index][0]] ON [$SRC_TABLE_NAME]
-            (
-                $cols_to_index ASC
-            )
-            WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-        ";
-        print "INDEX CREATION: $query\n" if $debug;
-        my $sth = $destination_db->prepare($query);
-        $sth->execute;
     }
-
 }
 # Set exit variable $? to success
 exit 1;
