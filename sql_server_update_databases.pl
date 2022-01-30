@@ -195,6 +195,7 @@ for my $table (0..$#{$src_tables}){
         my $sth = $destination_db->prepare($query);
         $sth->execute;
     }
+    print "\n All Done Creating: $SRC_TABLE_NAME\n\n";
 }
 # Set exit variable $? to success
 exit 1;
