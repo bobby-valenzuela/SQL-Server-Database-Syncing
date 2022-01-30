@@ -106,7 +106,10 @@ for my $table (0..$#{$src_tables}){
                 
                 IF EXISTS
                     (SELECT object_id FROM sys.tables WHERE name = '$old_table_name' AND SCHEMA_NAME(schema_id) = 'dbo')
-                    DROP TABLE $old_table_name
+                    BEGIN
+                        DROP TABLE $old_table_name
+                        EXEC sp_rename '$SRC_TABLE_NAME', '$old_table_name'
+                    END
                 ELSE
                     EXEC sp_rename '$SRC_TABLE_NAME', '$old_table_name'
             ELSE 
