@@ -25,7 +25,7 @@ my $debug = 1; # Adding this useful little guy as I learned from the best - my d
 my $TABLE_TO_SEARCH = $ARGV[0] ne 'all' ? " AND TABLE_NAME='$ARGV[0]' " : '' ;
 
 # Get all prod tables
-my $query = "SELECT TABLE_NAME FROM sscore.INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' $TABLE_TO_SEARCH ORDER BY TABLE_NAME";
+my $query = "SELECT TABLE_NAME FROM sscore.INFORMATION_SCHEMA.TABLES WITH (NOLOCK) WHERE TABLE_TYPE='BASE TABLE' $TABLE_TO_SEARCH ORDER BY TABLE_NAME";
 my $sth = $source_db->prepare($query);
 $sth->execute;
 $src_tables = $sth->fetchall_arrayref();
@@ -37,7 +37,7 @@ for my $table (0..$#{$src_tables}){
     my $SRC_TABLE_NAME = $src_tables->[$table][0];
 
     # Get source table columns
-    $query = "SELECT COLUMN_NAME, COLUMN_DEFAULT, IS_NULLABLE, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='$SRC_TABLE_NAME' ORDER BY ORDINAL_POSITION";
+    $query = "SELECT COLUMN_NAME, COLUMN_DEFAULT, IS_NULLABLE, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WITH (NOLOCK) WHERE TABLE_NAME='$SRC_TABLE_NAME' ORDER BY ORDINAL_POSITION";
     my $sth = $source_db->prepare($query);
     $sth->execute;
     my $columns = $sth->fetchall_arrayref();
@@ -102,10 +102,10 @@ for my $table (0..$#{$src_tables}){
     # If table name already exists, changed to tablename_old. If that already exists, drop that table to make room for new 'old' one :)
     my $old_table_name = "$SRC_TABLE_NAME\_old";
     my $query = "IF EXISTS 
-                (SELECT object_id FROM sys.tables WHERE name = '$SRC_TABLE_NAME' AND SCHEMA_NAME(schema_id) = 'dbo')
+                (SELECT object_id FROM sys.tables WITH (NOLOCK) WHERE name = '$SRC_TABLE_NAME' AND SCHEMA_NAME(schema_id) = 'dbo')
                 
                 IF EXISTS
-                    (SELECT object_id FROM sys.tables WHERE name = '$old_table_name' AND SCHEMA_NAME(schema_id) = 'dbo')
+                    (SELECT object_id FROM sys.tables WITH (NOLOCK) WHERE name = '$old_table_name' AND SCHEMA_NAME(schema_id) = 'dbo')
                     BEGIN
                         DROP TABLE $old_table_name
                         EXEC sp_rename '$SRC_TABLE_NAME', '$old_table_name'
@@ -124,7 +124,7 @@ for my $table (0..$#{$src_tables}){
     $sth->execute;
 
     # Check how may columns there are from source table
-    my $query = "SELECT COUNT(COLUMN_NAME) from INFORMATION_SCHEMA.COLUMNS where TABLE_NAME='$SRC_TABLE_NAME';";
+    my $query = "SELECT COUNT(COLUMN_NAME) from INFORMATION_SCHEMA.COLUMNS WITH (NOLOCK) WHERE TABLE_NAME='$SRC_TABLE_NAME';";
     my $sth = $source_db->prepare($query);
     $sth->execute;
     my $num_of_columns = $sth->fetchrow();
