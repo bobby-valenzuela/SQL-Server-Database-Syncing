@@ -51,7 +51,9 @@ for my $table (0..$#{$src_tables}){
     for my $column(0..$#{$columns}){
 
         my $data_type_length = my $is_iden = my $is_primary_key = '';
-        my $data_type_length = "($columns->[$column][4])" if ($columns->[$column][4] ne ''&& lc($columns->[$column][3]) ne 'text');
+        # Varchar show as -1 for varchar(max) - account for this
+        $columns->[$column][4] = ($columns->[$column][4] == -1 && lc($columns->[$column][3]) eq 'varchar') ? 'MAX' : $columns->[$column][4];
+        $data_type_length = "($columns->[$column][4])" if ($columns->[$column][4] ne ''&& lc($columns->[$column][3]) ne 'text');
         
         if ($column == 0){
             # If we're on first column - check if identity is applied to this col so we can add to new table
@@ -84,12 +86,10 @@ for my $table (0..$#{$src_tables}){
         $columns->[$column][3] = uc($columns->[$column][3]);
         
         # Build column list
-        if ( ($first_col_is_identity == 0 && $column == 0) || $column > 0){
-            $column_list .= "$columns->[$column][0],"
-        };
+        $column_list .= "$columns->[$column][0],";
         $column_list =~ s/,$// if $column == $#{$columns};
         
-        # Buils create table query 
+        # Build create table query 
         $create_table_sql .= "  $columns->[$column][0] $columns->[$column][3] $has_primary_key $data_type_length $is_iden $is_nullable $has_default,\n";
         $create_table_sql =~ s/,$// if $column == $#{$columns};
 
@@ -128,7 +128,7 @@ for my $table (0..$#{$src_tables}){
     my $sth = $source_db->prepare($query);
     $sth->execute;
     my $num_of_columns = $sth->fetchrow();
-    my $ending_column = ($first_col_is_identity == 1) ? ($num_of_columns -2) : ($num_of_columns -1);
+    my $ending_column = ($num_of_columns - 1);
     
     # Get source table rows and insert
     my $query = "SELECT $column_list FROM $SRC_TABLE_NAME";
@@ -141,8 +141,8 @@ for my $table (0..$#{$src_tables}){
         my $values_to_insert = '';
         
         for my $v(0..$ending_column){
-            my $real_col_index = $first_col_is_identity == 1 ? ($v - 1) : $v;
-            my $data_type = $column_data_types{"$real_col_index"};
+
+            my $data_type = $column_data_types{"$v"};
 
             # Escape any apos
             $source_rows->[$row][$v] =~ s/'/''/g;
@@ -157,7 +157,10 @@ for my $table (0..$#{$src_tables}){
 
         }
         
-        my $query = "INSERT INTO $SRC_TABLE_NAME ($column_list) \nVALUES($values_to_insert)";
+        my $iden_start_sql = $first_col_is_identity ? "SET IDENTITY_INSERT [$SRC_TABLE_NAME] ON" : '';
+        my $iden_ending_sql = $first_col_is_identity ? "SET IDENTITY_INSERT [$SRC_TABLE_NAME] OFF" : '';
+
+        my $query = " $iden_start_sql INSERT INTO $SRC_TABLE_NAME ($column_list) \nVALUES($values_to_insert) $iden_ending_sql";
         print "$query\n" if $debug;
         my $sth = $destination_db->prepare($query);
         $sth->execute;
